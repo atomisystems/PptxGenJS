@@ -606,6 +606,20 @@ export interface MediaProps extends PositionProps, DataOrPathProps, ObjectNamePr
 	path?: string
 }
 
+// groups =========================================================================================
+
+export interface GroupProps extends PositionProps, ObjectNameProps {
+	/**
+	 * Group rotation in degrees
+	 * @default 0
+	 */
+	rotate?: number
+	/**
+	 * Child slide objects contained within this group
+	 */
+	_objects?: ISlideObject[]
+}
+
 // shapes =========================================================================================
 
 export interface ShapeProps extends PositionProps, ObjectNameProps {
@@ -1680,6 +1694,8 @@ export interface ISlideObject {
 	mtype?: MediaType
 	mediaRid?: number
 	shape?: SHAPE_NAME
+	// group
+	_objects?: ISlideObject[]
 }
 // PRIVATE ^^^
 

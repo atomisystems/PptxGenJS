@@ -6,6 +6,7 @@ import { CHART_NAME, SHAPE_NAME } from './core-enums'
 import {
 	AddSlideProps,
 	BackgroundProps,
+	GroupProps,
 	HexColor,
 	IChartMulti,
 	IChartOpts,
@@ -201,6 +202,18 @@ export default class Slide {
 	 */
 	addNotes(notes: string): Slide {
 		genObj.addNotesDefinition(this, notes)
+		return this
+	}
+
+	/**
+	 * Add a group to Slide
+	 * A group is a container that holds other slide objects (shapes, images, text, nested groups).
+	 * @param {GroupProps} options - group position and size options
+	 * @param {ISlideObject[]} objects - child slide objects inside the group
+	 * @return {Slide} this Slide
+	 */
+	addGroup(options: GroupProps, objects: ISlideObject[]): Slide {
+		genObj.addGroupDefinition(this, options, objects)
 		return this
 	}
 

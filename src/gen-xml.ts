@@ -17,6 +17,7 @@ import {
 	SLIDE_OBJECT_TYPES,
 } from './core-enums'
 import {
+	GroupProps,
 	IPresentationProps,
 	ISlideObject,
 	ISlideRel,
@@ -75,6 +76,254 @@ const ImageSizingXml = {
 		const bPerc = Math.round(1e5 * (b / imgSize.h))
 		return `<a:srcRect l="${lPerc}" r="${rPerc}" t="${tPerc}" b="${bPerc}"/><a:stretch/>`
 	},
+}
+
+/**
+ * Generates XML for a single slide object (shape, image, text, etc.)
+ * This is used both for top-level slide objects and recursively for group children.
+ * @param {ISlideObject} slideItemObj - the slide object to generate XML for
+ * @param {number} idx - object index (used for unique IDs)
+ * @param {PresSlide | SlideLayout} slide - the parent slide (for layout/media references)
+ * @param {number} [idOffset=0] - additional offset added to idx for unique IDs within groups
+ * @return {string} XML string for the object
+ */
+
+/**
+ * Generate custGeom XML for freeform shapes.
+ * Supports `options.paths` (array of point-arrays → multiple <a:path> elements)
+ * and `options.points` (single point-array → one <a:path>) for backward compatibility.
+ */
+function genCustGeomXml (slideItemObj: ISlideObject, cx: number, cy: number, slide: PresSlide | SlideLayout): string {
+	let xml = '<a:custGeom><a:avLst /><a:gdLst /><a:ahLst /><a:cxnLst />'
+	xml += '<a:rect l="l" t="t" r="r" b="b" />'
+	xml += '<a:pathLst>'
+
+	// Support multiple paths (options.paths) or single path (options.points)
+	const pathArrays: any[][] = (slideItemObj.options as any)?.paths || (slideItemObj.options?.points ? [slideItemObj.options.points] : [])
+
+	// Use custom path dimensions if provided (already in EMU), otherwise use shape dimensions
+	const pathW: number = (slideItemObj.options as any)?.pathW || cx
+	const pathH: number = (slideItemObj.options as any)?.pathH || cy
+
+	// Helper: resolve a coordinate value to an integer EMU value.
+	// If pathW/pathH were provided (SVG-derived paths), coordinates are already
+	// in the correct coordinate space — use them directly.  Otherwise fall back
+	// to getSmartParseNumber for backwards compatibility with the original
+	// PptxGenJS API where users may pass inches.
+	const hasCustomDims = !!(slideItemObj.options as any)?.pathW
+	const emu = (v: number): number => {
+		if (hasCustomDims) {
+			return Math.round(v)
+		}
+		return getSmartParseNumber(v, 'X', slide._presLayout)
+	}
+
+	for (const points of pathArrays) {
+		xml += `<a:path w="${Math.round(pathW)}" h="${Math.round(pathH)}">`
+		points?.forEach((point: any, i: number) => {
+			if ('curve' in point) {
+				switch (point.curve.type) {
+					case 'arc':
+						xml += `<a:arcTo hR="${getSmartParseNumber(point.curve.hR, 'Y', slide._presLayout)}" wR="${getSmartParseNumber(point.curve.wR, 'X', slide._presLayout)}" stAng="${convertRotationDegrees(point.curve.stAng)}" swAng="${convertRotationDegrees(point.curve.swAng)}" />`
+						break
+					case 'cubic':
+						xml += `<a:cubicBezTo>`
+						xml += `<a:pt x="${emu(point.curve.x1)}" y="${emu(point.curve.y1)}" />`
+						xml += `<a:pt x="${emu(point.curve.x2)}" y="${emu(point.curve.y2)}" />`
+						xml += `<a:pt x="${emu(point.x)}" y="${emu(point.y)}" />`
+						xml += `</a:cubicBezTo>`
+						break
+					case 'quadratic':
+						xml += `<a:quadBezTo>`
+						xml += `<a:pt x="${emu(point.curve.x1)}" y="${emu(point.curve.y1)}" />`
+						xml += `<a:pt x="${emu(point.x)}" y="${emu(point.y)}" />`
+						xml += `</a:quadBezTo>`
+						break
+				}
+			} else if ('close' in point) {
+				xml += '<a:close />'
+			} else if (point.moveTo || i === 0) {
+				xml += `<a:moveTo><a:pt x="${emu(point.x)}" y="${emu(point.y)}" /></a:moveTo>`
+			} else {
+				xml += `<a:lnTo><a:pt x="${emu(point.x)}" y="${emu(point.y)}" /></a:lnTo>`
+			}
+		})
+		xml += '</a:path>'
+	}
+
+	xml += '</a:pathLst>'
+	xml += '</a:custGeom>'
+	return xml
+}
+
+function genXmlSlideObject (slideItemObj: ISlideObject, idx: number, slide: PresSlide | SlideLayout, idOffset = 0): string {
+	let strXml = ''
+	let x = 0
+	let y = 0
+	let cx = getSmartParseNumber('75%', 'X', slide._presLayout)
+	let cy = 0
+	let locationAttr = ''
+	const sizing: ObjectOptions['sizing'] = slideItemObj.options?.sizing
+	const rounding: boolean = slideItemObj.options?.rounding
+	const rectRadius: number = slideItemObj.options?.rectRadius
+	const objId = idx + 2 + idOffset
+
+	slideItemObj.options = slideItemObj.options || {}
+	if (typeof slideItemObj.options.x !== 'undefined') x = getSmartParseNumber(slideItemObj.options.x, 'X', slide._presLayout)
+	if (typeof slideItemObj.options.y !== 'undefined') y = getSmartParseNumber(slideItemObj.options.y, 'Y', slide._presLayout)
+	if (typeof slideItemObj.options.w !== 'undefined') cx = getSmartParseNumber(slideItemObj.options.w, 'X', slide._presLayout)
+	if (typeof slideItemObj.options.h !== 'undefined') cy = getSmartParseNumber(slideItemObj.options.h, 'Y', slide._presLayout)
+
+	if (slideItemObj.options.flipH) locationAttr += ' flipH="1"'
+	if (slideItemObj.options.flipV) locationAttr += ' flipV="1"'
+	if (slideItemObj.options.rotate) locationAttr += ` rot="${convertRotationDegrees(slideItemObj.options.rotate)}"`
+
+	switch (slideItemObj._type) {
+		case SLIDE_OBJECT_TYPES.group:
+			strXml += genXmlGroupObject(slideItemObj, idx, slide, idOffset)
+			break
+
+		case SLIDE_OBJECT_TYPES.text:
+		case SLIDE_OBJECT_TYPES.placeholder: {
+			if (!slideItemObj.options.line && cy === 0) cy = EMU * 0.3
+			if (!slideItemObj.options._bodyProp) slideItemObj.options._bodyProp = {}
+			if (slideItemObj.options.margin && Array.isArray(slideItemObj.options.margin)) {
+				slideItemObj.options._bodyProp.lIns = valToPts(slideItemObj.options.margin[0] || 0)
+				slideItemObj.options._bodyProp.rIns = valToPts(slideItemObj.options.margin[1] || 0)
+				slideItemObj.options._bodyProp.bIns = valToPts(slideItemObj.options.margin[2] || 0)
+				slideItemObj.options._bodyProp.tIns = valToPts(slideItemObj.options.margin[3] || 0)
+			} else if (typeof slideItemObj.options.margin === 'number') {
+				slideItemObj.options._bodyProp.lIns = valToPts(slideItemObj.options.margin)
+				slideItemObj.options._bodyProp.rIns = valToPts(slideItemObj.options.margin)
+				slideItemObj.options._bodyProp.bIns = valToPts(slideItemObj.options.margin)
+				slideItemObj.options._bodyProp.tIns = valToPts(slideItemObj.options.margin)
+			}
+			strXml += '<p:sp>'
+			strXml += `<p:nvSpPr><p:cNvPr id="${objId}" name="${slideItemObj.options.objectName || `Shape ${objId}`}"/>`
+			strXml += '<p:cNvSpPr' + (slideItemObj.options?.isTextBox ? ' txBox="1"/>' : '/>')
+			strXml += '<p:nvPr/></p:nvSpPr><p:spPr>'
+			strXml += `<a:xfrm${locationAttr}>`
+			strXml += `<a:off x="${x}" y="${y}"/>`
+			strXml += `<a:ext cx="${cx}" cy="${cy}"/></a:xfrm>`
+			if (slideItemObj.shape === 'custGeom') {
+				strXml += genCustGeomXml(slideItemObj, cx, cy, slide)
+			} else {
+				strXml += '<a:prstGeom prst="' + (slideItemObj.shape || 'rect') + '"><a:avLst>'
+				if (slideItemObj.options.rectRadius) {
+					strXml += `<a:gd name="adj" fmla="val ${Math.round((slideItemObj.options.rectRadius * EMU * 100000) / Math.min(cx, cy))}"/>`
+				}
+				strXml += '</a:avLst></a:prstGeom>'
+			}
+			strXml += slideItemObj.options.fill ? genXmlColorSelection(slideItemObj.options.fill) : '<a:noFill/>'
+			if (slideItemObj.options.line && slideItemObj.options.line.type !== 'none') {
+				strXml += slideItemObj.options.line.width ? `<a:ln w="${valToPts(slideItemObj.options.line.width)}">` : '<a:ln>'
+				if (slideItemObj.options.line.color) strXml += genXmlColorSelection(slideItemObj.options.line)
+				if (slideItemObj.options.line.dashType) strXml += `<a:prstDash val="${slideItemObj.options.line.dashType}"/>`
+				strXml += '</a:ln>'
+			}
+			if (slideItemObj.options.shadow && slideItemObj.options.shadow.type !== 'none') {
+				const shdw = slideItemObj.options.shadow
+				const sBlur = valToPts(shdw.blur || 8)
+				const sDist = valToPts(shdw.offset || 4)
+				const sAngle = Math.round((shdw.angle || 270) * 60000)
+				const sOpacity = Math.round((shdw.opacity || 0.75) * 100000)
+				const sColor = shdw.color || '000000'
+				strXml += '<a:effectLst>'
+				strXml += ` <a:outerShdw sx="100000" sy="100000" kx="0" ky="0" algn="bl" rotWithShape="0" blurRad="${sBlur}" dist="${sDist}" dir="${sAngle}">`
+				strXml += ` <a:srgbClr val="${sColor}"><a:alpha val="${sOpacity}"/></a:srgbClr>`
+				strXml += ' </a:outerShdw></a:effectLst>'
+			}
+			strXml += '</p:spPr>'
+			strXml += genXmlTextBody(slideItemObj)
+			strXml += '</p:sp>'
+			break
+		}
+
+		case SLIDE_OBJECT_TYPES.image: {
+			const imgRel = (slide._relsMedia || []).find(rel => rel.rId === slideItemObj.imageRid)
+			const isRounding = rounding != null
+			strXml += '<p:pic>'
+			strXml += `<p:nvPicPr><p:cNvPr id="${objId}" name="${slideItemObj.options.objectName || `Picture ${objId}`}" descr="${encodeXmlEntities(slideItemObj.options.altText || slideItemObj.image || '')}"/>`
+			strXml += '<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr>'
+			strXml += '<p:nvPr/></p:nvPicPr>'
+			strXml += '<p:blipFill>'
+			strXml += `<a:blip r:embed="rId${slideItemObj.imageRid}"`
+			if (imgRel?.isSvgPng) strXml += ` r:link="rId${slideItemObj.imageRid + 1}"`
+			strXml += '>'
+			if (slideItemObj.options.transparency) strXml += `<a:alphaModFix amt="${Math.round(100000 - slideItemObj.options.transparency * 1000)}"/>`
+			strXml += '</a:blip>'
+			if (sizing && sizing.type) {
+				strXml += ImageSizingXml[sizing.type]({ w: (imgRel?.svgSize?.w || cx), h: (imgRel?.svgSize?.h || cy) }, { w: cx, h: cy, x: getSmartParseNumber(sizing.x || 0, 'X', slide._presLayout), y: getSmartParseNumber(sizing.y || 0, 'Y', slide._presLayout) })
+			} else {
+				strXml += '<a:stretch><a:fillRect/></a:stretch>'
+			}
+			strXml += '</p:blipFill>'
+			strXml += '<p:spPr>'
+			strXml += `<a:xfrm${locationAttr}><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>`
+			strXml += isRounding && rectRadius
+				? `<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val ${Math.round((rectRadius * EMU * 100000) / Math.min(cx, cy))}"/></a:avLst></a:prstGeom>`
+				: '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>'
+			strXml += slideItemObj.options.fill ? genXmlColorSelection(slideItemObj.options.fill) : '<a:noFill/>'
+			if (slideItemObj.options.border) {
+				const brd = slideItemObj.options.border
+				strXml += `<a:ln w="${valToPts((brd as any).pt || 1)}">`
+				if ((brd as any).color) strXml += genXmlColorSelection({ color: (brd as any).color })
+				strXml += '</a:ln>'
+			}
+			strXml += '</p:spPr>'
+			strXml += '</p:pic>'
+			break
+		}
+
+		default:
+			break
+	}
+
+	return strXml
+}
+
+/**
+ * Generates XML for a group shape element (`<p:grpSp>`)
+ * Groups can contain any slide objects and can be nested.
+ * @param {ISlideObject} groupObj - the group slide object
+ * @param {number} idx - object index
+ * @param {PresSlide | SlideLayout} slide - parent slide (for layout/media references)
+ * @param {number} [idOffset=0] - additional id offset for uniqueness
+ * @return {string} XML string for the `<p:grpSp>` element
+ */
+function genXmlGroupObject (groupObj: ISlideObject, idx: number, slide: PresSlide | SlideLayout, idOffset = 0): string {
+	const opts = groupObj.options || {}
+	const objId = idx + 2 + idOffset
+
+	const x = typeof opts.x !== 'undefined' ? getSmartParseNumber(opts.x, 'X', slide._presLayout) : 0
+	const y = typeof opts.y !== 'undefined' ? getSmartParseNumber(opts.y, 'Y', slide._presLayout) : 0
+	const cx = typeof opts.w !== 'undefined' ? getSmartParseNumber(opts.w, 'X', slide._presLayout) : getSmartParseNumber('75%', 'X', slide._presLayout)
+	const cy = typeof opts.h !== 'undefined' ? getSmartParseNumber(opts.h, 'Y', slide._presLayout) : 0
+
+	let locationAttr = ''
+	if (opts.rotate) locationAttr += ` rot="${convertRotationDegrees(opts.rotate)}"`
+
+	let strXml = ''
+	strXml += '<p:grpSp>'
+	strXml += `<p:nvGrpSpPr><p:cNvPr id="${objId}" name="${encodeXmlEntities(opts.objectName || `Group ${objId}`)}"/>`
+	strXml += '<p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>'
+	strXml += '<p:grpSpPr>'
+	strXml += `<a:xfrm${locationAttr}>`
+	strXml += `<a:off x="${x}" y="${y}"/>`
+	strXml += `<a:ext cx="${cx}" cy="${cy}"/>`
+	strXml += `<a:chOff x="${x}" y="${y}"/>`
+	strXml += `<a:chExt cx="${cx}" cy="${cy}"/>`
+	strXml += '</a:xfrm>'
+	strXml += '</p:grpSpPr>'
+
+	// Render all child objects
+	const children = groupObj._objects || []
+	children.forEach((childObj, childIdx) => {
+		strXml += genXmlSlideObject(childObj, childIdx, slide, (idx + 1) * 1000 + idOffset)
+	})
+
+	strXml += '</p:grpSp>'
+	return strXml
 }
 
 /**
@@ -427,63 +676,7 @@ function slideObjectToXml (slide: PresSlide | SlideLayout): string {
 				strSlideXml += `<a:ext cx="${cx}" cy="${cy}"/></a:xfrm>`
 
 				if (slideItemObj.shape === 'custGeom') {
-					strSlideXml += '<a:custGeom><a:avLst />'
-					strSlideXml += '<a:gdLst>'
-					strSlideXml += '</a:gdLst>'
-					strSlideXml += '<a:ahLst />'
-					strSlideXml += '<a:cxnLst>'
-					strSlideXml += '</a:cxnLst>'
-					strSlideXml += '<a:rect l="l" t="t" r="r" b="b" />'
-
-					strSlideXml += '<a:pathLst>'
-					strSlideXml += `<a:path w="${cx}" h="${cy}">`
-
-					slideItemObj.options.points?.forEach((point, i) => {
-						if ('curve' in point) {
-							switch (point.curve.type) {
-								case 'arc':
-									strSlideXml += `<a:arcTo hR="${getSmartParseNumber(point.curve.hR, 'Y', slide._presLayout)}" wR="${getSmartParseNumber(
-										point.curve.wR,
-										'X',
-										slide._presLayout
-									)}" stAng="${convertRotationDegrees(point.curve.stAng)}" swAng="${convertRotationDegrees(point.curve.swAng)}" />`
-									break
-								case 'cubic':
-									strSlideXml += `<a:cubicBezTo>
-									<a:pt x="${getSmartParseNumber(point.curve.x1, 'X', slide._presLayout)}" y="${getSmartParseNumber(point.curve.y1, 'Y', slide._presLayout)}" />
-									<a:pt x="${getSmartParseNumber(point.curve.x2, 'X', slide._presLayout)}" y="${getSmartParseNumber(point.curve.y2, 'Y', slide._presLayout)}" />
-									<a:pt x="${getSmartParseNumber(point.x, 'X', slide._presLayout)}" y="${getSmartParseNumber(point.y, 'Y', slide._presLayout)}" />
-									</a:cubicBezTo>`
-									break
-								case 'quadratic':
-									strSlideXml += `<a:quadBezTo>
-									<a:pt x="${getSmartParseNumber(point.curve.x1, 'X', slide._presLayout)}" y="${getSmartParseNumber(point.curve.y1, 'Y', slide._presLayout)}" />
-									<a:pt x="${getSmartParseNumber(point.x, 'X', slide._presLayout)}" y="${getSmartParseNumber(point.y, 'Y', slide._presLayout)}" />
-									</a:quadBezTo>`
-									break
-								default:
-									break
-							}
-						} else if ('close' in point) {
-							strSlideXml += '<a:close />'
-						} else if (point.moveTo || i === 0) {
-							strSlideXml += `<a:moveTo><a:pt x="${getSmartParseNumber(point.x, 'X', slide._presLayout)}" y="${getSmartParseNumber(
-								point.y,
-								'Y',
-								slide._presLayout
-							)}" /></a:moveTo>`
-						} else {
-							strSlideXml += `<a:lnTo><a:pt x="${getSmartParseNumber(point.x, 'X', slide._presLayout)}" y="${getSmartParseNumber(
-								point.y,
-								'Y',
-								slide._presLayout
-							)}" /></a:lnTo>`
-						}
-					})
-
-					strSlideXml += '</a:path>'
-					strSlideXml += '</a:pathLst>'
-					strSlideXml += '</a:custGeom>'
+					strSlideXml += genCustGeomXml(slideItemObj, cx, cy, slide)
 				} else {
 					strSlideXml += '<a:prstGeom prst="' + slideItemObj.shape + '"><a:avLst>'
 					if (slideItemObj.options.rectRadius) {
@@ -687,6 +880,10 @@ function slideObjectToXml (slide: PresSlide | SlideLayout): string {
 				strSlideXml += '  </a:graphicData>'
 				strSlideXml += ' </a:graphic>'
 				strSlideXml += '</p:graphicFrame>'
+				break
+
+			case SLIDE_OBJECT_TYPES.group:
+				strSlideXml += genXmlGroupObject(slideItemObj, idx, slide)
 				break
 
 			default:

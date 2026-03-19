@@ -27,6 +27,7 @@ import {
 import {
 	AddSlideProps,
 	BackgroundProps,
+	GroupProps,
 	IChartMulti,
 	IChartOptsLib,
 	IOptsChartData,
@@ -1240,4 +1241,34 @@ function createHyperlinkRels(
 			}
 		}
 	})
+}
+
+/**
+ * Adds a group object to a slide definition.
+ * A group is a container that can hold other slide objects (shapes, images, text, even nested groups).
+ * The group's position (x, y, w, h) defines its bounding box on the slide.
+ * Child objects use coordinates relative to the slide origin (same as non-grouped objects),
+ * but their visual position is clipped to/relative to the group bounding box.
+ *
+ * @param {PresSlide} target - slide object that the group should be added to
+ * @param {GroupProps} opts - group options (position, size, rotation)
+ * @param {ISlideObject[]} objects - child slide objects inside the group
+ */
+export function addGroupDefinition(target: PresSlide, opts: GroupProps, objects: ISlideObject[]): void {
+	const options = opts || {}
+
+	const newObject: ISlideObject = {
+		_type: SLIDE_OBJECT_TYPES.group,
+		options: {
+			x: options.x ?? 0,
+			y: options.y ?? 0,
+			w: options.w ?? 1,
+			h: options.h ?? 1,
+			rotate: options.rotate ?? 0,
+			objectName: options.objectName ? encodeXmlEntities(options.objectName) : `Group ${target._slideObjects.filter(obj => obj._type === SLIDE_OBJECT_TYPES.group).length + 1}`,
+		},
+		_objects: objects || [],
+	}
+
+	target._slideObjects.push(newObject)
 }
