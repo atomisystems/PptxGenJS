@@ -443,7 +443,7 @@ export enum SHAPE_TYPE {
 	LINE_CALLOUT_3_BORDER_AND_ACCENT_BAR = 'accentBorderCallout3',
 	LINE_CALLOUT_3_NO_BORDER = 'callout3',
 	LINE_CALLOUT_4 = 'borderCallout4',
-	LINE_CALLOUT_4_ACCENT_BAR = 'accentCallout3=4',
+	LINE_CALLOUT_4_ACCENT_BAR = 'accentCallout4',
 	LINE_CALLOUT_4_BORDER_AND_ACCENT_BAR = 'accentBorderCallout4',
 	LINE_CALLOUT_4_NO_BORDER = 'callout4',
 	LINE = 'line',

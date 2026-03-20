@@ -253,7 +253,9 @@ function genXmlSlideObject (slideItemObj: ISlideObject, idx: number, slide: Pres
 			if (slideItemObj.options.transparency) strXml += `<a:alphaModFix amt="${Math.round(100000 - slideItemObj.options.transparency * 1000)}"/>`
 			strXml += '</a:blip>'
 			if (sizing && sizing.type) {
-				strXml += ImageSizingXml[sizing.type]({ w: (imgRel?.svgSize?.w || cx), h: (imgRel?.svgSize?.h || cy) }, { w: cx, h: cy, x: getSmartParseNumber(sizing.x || 0, 'X', slide._presLayout), y: getSmartParseNumber(sizing.y || 0, 'Y', slide._presLayout) })
+				const imgNatW = (sizing as any)?.imageW || imgRel?.svgSize?.w || cx
+				const imgNatH = (sizing as any)?.imageH || imgRel?.svgSize?.h || cy
+				strXml += ImageSizingXml[sizing.type]({ w: imgNatW, h: imgNatH }, { w: cx, h: cy, x: getSmartParseNumber(sizing.x || 0, 'X', slide._presLayout), y: getSmartParseNumber(sizing.y || 0, 'Y', slide._presLayout) })
 			} else {
 				strXml += '<a:stretch><a:fillRect/></a:stretch>'
 			}
@@ -365,7 +367,6 @@ function slideObjectToXml (slide: PresSlide | SlideLayout): string {
 		let intColW = 0
 		let cellOpts: TableCellProps = null
 		let strXml: string = null
-		const sizing: ObjectOptions['sizing'] = slideItemObj.options?.sizing
 		const rounding = slideItemObj.options?.rounding
 
 		if (
@@ -388,8 +389,10 @@ function slideObjectToXml (slide: PresSlide | SlideLayout): string {
 		if (typeof slideItemObj.options.h !== 'undefined') cy = getSmartParseNumber(slideItemObj.options.h, 'Y', slide._presLayout)
 
 		// Set w/h now that smart parse is done
-		let imgWidth = cx
-		let imgHeight = cy
+		// Use natural image dimensions from sizing if provided (for correct cover/contain crop ratio)
+		const sizing: ObjectOptions['sizing'] = slideItemObj.options?.sizing
+		let imgWidth = (sizing as any)?.imageW || cx
+		let imgHeight = (sizing as any)?.imageH || cy
 
 		// If using a placeholder then inherit it's position
 		if (placeholderObj) {
@@ -1071,10 +1074,10 @@ function genXmlParagraphProperties (textObj: ISlideObject | TextProps, isDefault
 		}
 
 		// OPTION: Paragraph Spacing: Before/After
-		if (textObj.options.paraSpaceBefore && !isNaN(Number(textObj.options.paraSpaceBefore)) && textObj.options.paraSpaceBefore > 0) {
+		if (textObj.options.paraSpaceBefore != null && !isNaN(Number(textObj.options.paraSpaceBefore)) && textObj.options.paraSpaceBefore >= 0) {
 			strXmlParaSpc += `<a:spcBef><a:spcPts val="${Math.round(textObj.options.paraSpaceBefore * 100)}"/></a:spcBef>`
 		}
-		if (textObj.options.paraSpaceAfter && !isNaN(Number(textObj.options.paraSpaceAfter)) && textObj.options.paraSpaceAfter > 0) {
+		if (textObj.options.paraSpaceAfter != null && !isNaN(Number(textObj.options.paraSpaceAfter)) && textObj.options.paraSpaceAfter >= 0) {
 			strXmlParaSpc += `<a:spcAft><a:spcPts val="${Math.round(textObj.options.paraSpaceAfter * 100)}"/></a:spcAft>`
 		}
 

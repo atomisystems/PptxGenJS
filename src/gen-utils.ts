@@ -204,6 +204,33 @@ export function genXmlColorSelection (props: Color | ShapeFillProps | ShapeLineP
 			case 'solid':
 				outText += `<a:solidFill>${createColorElement(colorVal, internalElements)}</a:solidFill>`
 				break
+			case 'gradient': {
+				const fillProps = props as ShapeFillProps
+				const stops = fillProps.colorStops || []
+				if (stops.length >= 2) {
+					let gsLst = '<a:gsLst>'
+					for (const stop of stops) {
+						const pos = Math.round(stop.position * 1000)
+						let stopInternal = ''
+						if (stop.transparency) {
+							stopInternal = `<a:alpha val="${Math.round((100 - stop.transparency) * 1000)}"/>`
+						}
+						gsLst += `<a:gs pos="${pos}">${createColorElement(stop.color, stopInternal)}</a:gs>`
+					}
+					gsLst += '</a:gsLst>'
+					const gradType = fillProps.gradientType || 'linear'
+					let gradDir = ''
+					if (gradType === 'radial') {
+						gradDir = '<a:path path="circle"><a:fillToRect l="50000" t="50000" r="50000" b="50000"/></a:path>'
+					} else {
+						// OOXML angle: 0 = left→right, 5400000 = top→bottom (60000 units per degree)
+						const angle = Math.round((fillProps.gradientAngle || 0) * 60000)
+						gradDir = `<a:lin ang="${angle}" scaled="0"/>`
+					}
+					outText += `<a:gradFill>${gsLst}${gradDir}</a:gradFill>`
+				}
+				break
+			}
 			default: // @note need a statement as having only "break" is removed by rollup, then tiggers "no-default" js-linter
 				outText += ''
 				break

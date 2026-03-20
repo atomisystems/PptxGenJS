@@ -1434,6 +1434,16 @@ declare namespace PptxGenJS {
 		path?: string
 	}
 
+	// groups =========================================================================================
+
+	export interface GroupProps extends PositionProps, ObjectNameProps {
+		/**
+		 * Group rotation in degrees
+		 * @default 0
+		 */
+		rotate?: number
+	}
+
 	// shapes =========================================================================================
 
 	export interface ShapeProps extends PositionProps, ObjectNameProps {
@@ -2648,6 +2658,14 @@ declare namespace PptxGenJS {
 		 * @return {Slide} this Slide
 		 */
 		addNotes(notes: string): Slide
+		/**
+		 * Add a group to Slide
+		 * A group is a container that holds other slide objects (shapes, images, text, nested groups).
+		 * @param {GroupProps} options - group position and size options
+		 * @param {any[]} objects - child slide objects inside the group
+		 * @return {Slide} this Slide
+		 */
+		addGroup(options: GroupProps, objects: any[]): Slide
 		/**
 		 * Add shape to Slide
 		 * @param {SHAPE_NAME} shapeName - shape name
