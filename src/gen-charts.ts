@@ -1255,14 +1255,16 @@ function makeChartType (chartType: CHART_NAME, data: IOptsChartData[], opts: ICh
 
 				// 3: "Values": Scatter Chart has 2: `xVal` and `yVal`
 				{
-					// X-Axis is always the same
+					// X-Axis: use per-series xValues if available, otherwise fall back to data[0]
+					const xVals = (obj as any).xValues || data[0].values
+					const ptCount = xVals.length
 					strXml += '<c:xVal>'
 					strXml += '  <c:numRef>'
-					strXml += `    <c:f>Sheet1!$A$2:$A$${data[0].values.length + 1}</c:f>`
+					strXml += `    <c:f>Sheet1!$A$2:$A$${ptCount + 1}</c:f>`
 					strXml += '    <c:numCache>'
 					strXml += '      <c:formatCode>General</c:formatCode>'
-					strXml += `      <c:ptCount val="${data[0].values.length}"/>`
-					data[0].values.forEach((value, idx) => {
+					strXml += `      <c:ptCount val="${ptCount}"/>`
+					xVals.forEach((value: number, idx: number) => {
 						strXml += `<c:pt idx="${idx}"><c:v>${value || value === 0 ? value : ''}</c:v></c:pt>`
 					})
 					strXml += '    </c:numCache>'
@@ -1272,13 +1274,12 @@ function makeChartType (chartType: CHART_NAME, data: IOptsChartData[], opts: ICh
 					// Y-Axis vals are this object's `values`
 					strXml += '<c:yVal>'
 					strXml += '  <c:numRef>'
-					strXml += `    <c:f>Sheet1!$${getExcelColName(idx + 2)}$2:$${getExcelColName(idx + 2)}$${data[0].values.length + 1}</c:f>`
+					strXml += `    <c:f>Sheet1!$${getExcelColName(idx + 2)}$2:$${getExcelColName(idx + 2)}$${ptCount + 1}</c:f>`
 					strXml += '    <c:numCache>'
 					strXml += '      <c:formatCode>General</c:formatCode>'
-					// NOTE: Use pt count and iterate over data[0] (X-Axis) as user can have more values than data (eg: timeline where only first few months are populated)
-					strXml += `      <c:ptCount val="${data[0].values.length}"/>`
-					data[0].values.forEach((_value, idx) => {
-						strXml += `<c:pt idx="${idx}"><c:v>${obj.values[idx] || obj.values[idx] === 0 ? obj.values[idx] : ''}</c:v></c:pt>`
+					strXml += `      <c:ptCount val="${ptCount}"/>`
+					obj.values.forEach((value: number, idx: number) => {
+						strXml += `<c:pt idx="${idx}"><c:v>${value || value === 0 ? value : ''}</c:v></c:pt>`
 					})
 					strXml += '    </c:numCache>'
 					strXml += '  </c:numRef>'
@@ -1387,16 +1388,18 @@ function makeChartType (chartType: CHART_NAME, data: IOptsChartData[], opts: ICh
 				// C: '<c:dLbls>' "Data Labels"
 				// Let it be defaulted for now
 
-				// D: '<c:xVal>'/'<c:yVal>' "Values": Scatter Chart has 2: `xVal` and `yVal`
+				// D: '<c:xVal>'/'<c:yVal>' "Values": Bubble Chart has 2: `xVal` and `yVal`
 				{
-					// X-Axis is always the same
+					// X-Axis: use per-series xValues if available, otherwise fall back to data[0]
+					const xVals = (obj as any).xValues || data[0].values
+					const ptCount = xVals.length
 					strXml += '<c:xVal>'
 					strXml += '  <c:numRef>'
-					strXml += `    <c:f>Sheet1!$A$2:$A$${data[0].values.length + 1}</c:f>`
+					strXml += `    <c:f>Sheet1!$A$2:$A$${ptCount + 1}</c:f>`
 					strXml += '    <c:numCache>'
 					strXml += '      <c:formatCode>General</c:formatCode>'
-					strXml += `      <c:ptCount val="${data[0].values.length}"/>`
-					data[0].values.forEach((value, idx) => {
+					strXml += `      <c:ptCount val="${ptCount}"/>`
+					xVals.forEach((value: number, idx: number) => {
 						strXml += `<c:pt idx="${idx}"><c:v>${value || value === 0 ? value : ''}</c:v></c:pt>`
 					})
 					strXml += '    </c:numCache>'
@@ -1406,14 +1409,13 @@ function makeChartType (chartType: CHART_NAME, data: IOptsChartData[], opts: ICh
 					// Y-Axis vals are this object's `values`
 					strXml += '<c:yVal>'
 					strXml += '  <c:numRef>'
-					strXml += `<c:f>Sheet1!$${getExcelColName(idxColLtr + 1)}$2:$${getExcelColName(idxColLtr + 1)}$${data[0].values.length + 1}</c:f>`
+					strXml += `<c:f>Sheet1!$${getExcelColName(idxColLtr + 1)}$2:$${getExcelColName(idxColLtr + 1)}$${ptCount + 1}</c:f>`
 					idxColLtr++
 					strXml += '    <c:numCache>'
 					strXml += '      <c:formatCode>General</c:formatCode>'
-					// NOTE: Use pt count and iterate over data[0] (X-Axis) as user can have more values than data (eg: timeline where only first few months are populated)
-					strXml += `      <c:ptCount val="${data[0].values.length}"/>`
-					data[0].values.forEach((_value, idx) => {
-						strXml += `<c:pt idx="${idx}"><c:v>${obj.values[idx] || obj.values[idx] === 0 ? obj.values[idx] : ''}</c:v></c:pt>`
+					strXml += `      <c:ptCount val="${ptCount}"/>`
+					obj.values.forEach((value: number, idx: number) => {
+						strXml += `<c:pt idx="${idx}"><c:v>${value || value === 0 ? value : ''}</c:v></c:pt>`
 					})
 					strXml += '    </c:numCache>'
 					strXml += '  </c:numRef>'

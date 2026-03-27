@@ -2,6 +2,7 @@ import pkg from "./package.json" with { type: "json" };
 import resolve from "@rollup/plugin-node-resolve";
 import commonjs from "@rollup/plugin-commonjs";
 import typescript from "rollup-plugin-typescript2";
+import terser from "@rollup/plugin-terser";
 
 const nodeBuiltinsRE = /^node:.*/; /* Regex that matches all Node built-in specifiers */
 
@@ -14,8 +15,17 @@ export default {
 			name: "PptxGenJS",
 			globals: { jszip: "JSZip" },
 		},
+		{
+			file: "./src/bld/pptxgen.min.js",
+			format: "iife",
+			name: "PptxGenJS",
+			globals: { jszip: "JSZip" },
+			plugins: [terser()],
+		},
 		{ file: "./src/bld/pptxgen.cjs.js", format: "cjs", exports: "default" },
+		{ file: "./src/bld/pptxgen.cjs.min.js", format: "cjs", exports: "default", plugins: [terser()] },
 		{ file: "./src/bld/pptxgen.es.js", format: "es" },
+		{ file: "./src/bld/pptxgen.es.min.js", format: "es", plugins: [terser()] },
 	],
 	external: [
 		nodeBuiltinsRE,

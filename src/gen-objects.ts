@@ -460,6 +460,7 @@ export function addImageDefinition(target: PresSlide, opt: ImageProps): void {
 		transparency: opt.transparency || 0,
 		objectName,
 		shadow: correctShadowOptions(opt.shadow),
+		border: opt.border || null,
 	}
 
 	// STEP 4: Add this image to this Slide Rels (rId/rels count spans all slides! Count all images to get next rId)
@@ -1266,6 +1267,7 @@ export function addGroupDefinition(target: PresSlide, opts: GroupProps, objects:
 			h: options.h ?? 1,
 			rotate: options.rotate ?? 0,
 			objectName: options.objectName ? encodeXmlEntities(options.objectName) : `Group ${target._slideObjects.filter(obj => obj._type === SLIDE_OBJECT_TYPES.group).length + 1}`,
+			shadow: correctShadowOptions(options.shadow),
 		},
 		_objects: objects || [],
 	}

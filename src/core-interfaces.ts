@@ -509,6 +509,11 @@ export interface ImageProps extends PositionProps, DataOrPathProps, ObjectNamePr
 	 */
 	altText?: string
 	/**
+	 * Image border
+	 * @example { color: 'FF0000', pt: 2 }
+	 */
+	border?: BorderProps | [BorderProps, BorderProps, BorderProps, BorderProps]
+	/**
 	 * Flip horizontally?
 	 * @default false
 	 */
@@ -639,6 +644,11 @@ export interface GroupProps extends PositionProps, ObjectNameProps {
 	 * @default 0
 	 */
 	rotate?: number
+	/**
+	 * Shadow Props
+	 * @example { type: 'outer', color: '000000', opacity: 0.5, blur: 20, offset: 20, angle: 270 }
+	 */
+	shadow?: ShadowProps
 	/**
 	 * Child slide objects contained within this group
 	 */
